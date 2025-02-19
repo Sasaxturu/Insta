@@ -1,70 +1,51 @@
-const { Telegraf } = require('telegraf');
+
 const axios = require('axios');
+const { Telegraf } = require('telegraf');
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-const API_URL = 'https://www.laurine.site/api/downloader/igdl';
+const bot = new Telegraf(process.env.BOT_TOKEN); // Ambil token dari Heroku Config Vars
 
-bot.command('ig', async (ctx) => {
+bot.start((ctx) => ctx.reply('Kirim link Instagram untuk diunduh!'));
+
+bot.on('text', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const userMessage = ctx.message.text;
+
+    if (!userMessage.includes('instagram.com')) {
+        return ctx.reply('⚠️ Silakan kirimkan tautan Instagram yang valid.');
+    }
+
     try {
-        const messageText = ctx.message.text.split(' ');
-        if (messageText.length < 2) {
-            return ctx.reply('❌ Harap sertakan URL Instagram setelah perintah!\n\nContoh: /ig https://www.instagram.com/p/...');
+        ctx.reply('🔄 Sedang memproses, harap tunggu...');
+
+        // Panggil API terbaru
+        const apiURL = `https://www.laurine.site/api/downloader/igdl?url=${encodeURIComponent(userMessage)}`;
+        const response = await axios.get(apiURL, { headers: { 'accept': '*/*' } });
+        const data = response.data;
+
+        // Cek apakah API mengembalikan hasil
+        if (!data || !data.result || data.result.length === 0) {
+            return ctx.reply('❌ Gagal mengambil video. Coba lagi nanti.');
         }
 
-        let url = messageText[1].trim().split('?')[0];
+        const downloadURL = data.result[0].url;
+        const thumbnail = data.result[0].thumbnail || 'https://www.instagram.com/static/images/ico/favicon-200.png';
 
-        ctx.reply('⏳ Sedang memproses, mohon tunggu...');
-
-        console.log(`Fetching: ${API_URL}?url=${encodeURIComponent(url)}`);
-
-        const response = await axios.get(`${API_URL}?url=${encodeURIComponent(url)}`, {
-            headers: {
-                'accept': '*/*',
-                'User-Agent': 'Mozilla/5.0'
-            },
-            timeout: 10000
+        // Kirim thumbnail terlebih dahulu
+        await ctx.replyWithPhoto(thumbnail, {
+            caption: '✅ Video berhasil diunduh! Mengirim video...',
+            parse_mode: 'Markdown'
         });
 
-        console.log('API Response:', JSON.stringify(response.data, null, 2));
+        // Kirim video langsung ke chat
+        await ctx.replyWithVideo(downloadURL, {
+            caption: '🎥 Berikut videonya!',
+            parse_mode: 'Markdown'
+        });
 
-        if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
-            return ctx.reply('❌ Gagal mendapatkan media. Pastikan URL benar atau coba lagi nanti.');
-        }
-
-        const mediaList = response.data;
-
-        let sentSomething = false;
-
-        for (const media of mediaList) {
-            if (!media.url) {
-                console.log('Media tidak memiliki properti URL:', media);
-                continue;
-            }
-
-            try {
-                if (media.url.endsWith('.jpg') || media.url.endsWith('.png')) {
-                    await ctx.replyWithPhoto(media.url, { caption: '📷 Gambar berhasil diunduh!' });
-                    sentSomething = true;
-                } else if (media.url.endsWith('.mp4')) {
-                    await ctx.replyWithVideo(media.url, { caption: '🎥 Video berhasil diunduh!' });
-                    sentSomething = true;
-                } else {
-                    await ctx.reply(`📂 Media ditemukan:\n${media.url}`);
-                    sentSomething = true;
-                }
-            } catch (err) {
-                console.error('Gagal mengirim media:', err.message);
-            }
-        }
-
-        if (!sentSomething) {
-            ctx.reply('⚠ Tidak ada media yang dapat dikirim.');
-        }
     } catch (error) {
-        console.error('Error:', error.message);
-        ctx.reply('❌ Terjadi kesalahan, coba lagi nanti.');
+        console.error('Error:', error);
+        ctx.reply('❌ Terjadi kesalahan saat memproses permintaan.');
     }
 });
 
 bot.launch();
-console.log('✅ Bot berjalan di Heroku...');
