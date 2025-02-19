@@ -1,12 +1,18 @@
+
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 
-const bot = new Telegraf(process.env.BOT_TOKEN); // Token diambil dari Heroku Config Vars
+const bot = new Telegraf(process.env.BOT_TOKEN); // Ambil token dari Heroku Config Vars
 const API_URL = 'https://www.laurine.site/api/downloader/igdl';
+
+// Fungsi untuk validasi URL Instagram
+const isValidInstagramUrl = (url) => {
+    return /^https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\//.test(url);
+};
 
 // Perintah /start
 bot.start((ctx) => {
-    ctx.reply('👋 Selamat datang di Instagram Downloader Bot! Gunakan perintah:\n\n/ig <link_instagram>\n\nContoh: /ig https://www.instagram.com/p/...');
+    ctx.reply('👋 Selamat datang di Instagram Downloader Bot!\n\nGunakan perintah:\n/ig <link_instagram>\n\nContoh: /ig https://www.instagram.com/p/...');
 });
 
 // Perintah /ig
@@ -15,13 +21,18 @@ bot.command('ig', async (ctx) => {
         // Ambil URL dari pesan
         const messageText = ctx.message.text.split(' ');
         if (messageText.length < 2) {
-            return ctx.reply('❌ Harap sertakan URL Instagram setelah perintah! Contoh: /ig https://www.instagram.com/p/...');
+            return ctx.reply('❌ Harap sertakan URL Instagram setelah perintah!\n\nContoh: /ig https://www.instagram.com/p/...');
         }
 
-        let url = messageText[1];
+        let url = messageText[1].trim();
 
         // Hapus query parameter tambahan (?igsh=...)
         url = url.split('?')[0];
+
+        // Validasi URL
+        if (!isValidInstagramUrl(url)) {
+            return ctx.reply('❌ URL tidak valid! Harap masukkan URL postingan Instagram yang benar.');
+        }
 
         ctx.reply('⏳ Sedang memproses, mohon tunggu...');
 
@@ -33,27 +44,35 @@ bot.command('ig', async (ctx) => {
             headers: {
                 'accept': '*/*',
                 'User-Agent': 'Mozilla/5.0'
-            }
+            },
+            timeout: 10000 // Timeout 10 detik
         });
 
         // Debug: Cetak respons API
         console.log('API Response:', response.data);
 
-        if (!response.data || !response.data.media || response.data.media.length === 0) {
-            return ctx.reply('❌ Gagal mendapatkan media. Pastikan URL benar.');
+        if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+            return ctx.reply('❌ Gagal mendapatkan media. Pastikan URL benar atau coba lagi nanti.');
         }
 
-        const mediaList = response.data.media;
+        const mediaList = response.data;
 
         // Kirim setiap media ke Telegram
         for (const media of mediaList) {
-            const fileUrl = media.url;
-            const type = media.type; // 'image' atau 'video'
+            const fileUrl = media.url; // Link media langsung dari API
 
-            if (type === 'image') {
-                await ctx.replyWithPhoto(fileUrl);
-            } else if (type === 'video') {
-                await ctx.replyWithVideo(fileUrl);
+            try {
+                // Kirim media berdasarkan jenis file
+                if (fileUrl.endsWith('.jpg') || fileUrl.endsWith('.png')) {
+                    await ctx.replyWithPhoto(fileUrl, { caption: '📷 Gambar berhasil diunduh!' });
+                } else if (fileUrl.endsWith('.mp4')) {
+                    await ctx.replyWithVideo(fileUrl, { caption: '🎥 Video berhasil diunduh!' });
+                } else {
+                    await ctx.reply(`📂 Media ditemukan:\n${fileUrl}`);
+                }
+            } catch (err) {
+                console.error('Gagal mengirim media:', err.message);
+                ctx.reply(`❌ Gagal mengirim media: ${fileUrl}`);
             }
         }
     } catch (error) {
@@ -67,5 +86,6 @@ bot.on('message', (ctx) => {
     ctx.reply('🔗 Untuk mengunduh media Instagram, gunakan perintah:\n\n/ig <link_instagram>\n\nContoh: /ig https://www.instagram.com/p/...');
 });
 
+// Jalankan bot
 bot.launch();
 console.log('✅ Bot berjalan di Heroku...');
