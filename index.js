@@ -1,7 +1,5 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
 
 const bot = new Telegraf(process.env.BOT_TOKEN); // Token diambil dari Heroku Config Vars
 const API_URL = 'https://www.laurine.site/api/downloader/igdl';
@@ -20,25 +18,34 @@ bot.command('ig', async (ctx) => {
             return ctx.reply('❌ Harap sertakan URL Instagram setelah perintah! Contoh: /ig https://www.instagram.com/p/...');
         }
 
-        const url = messageText[1];
+        let url = messageText[1];
+
+        // Hapus query parameter tambahan (?igsh=...)
+        url = url.split('?')[0];
+
         ctx.reply('⏳ Sedang memproses, mohon tunggu...');
 
+        // Debug: Cetak URL yang dikirim ke API
+        console.log(`Fetching: ${API_URL}?url=${encodeURIComponent(url)}`);
+
         // Panggil API Instagram Downloader
-        const response = await axios.get(API_URL, {
-            params: { url },
+        const response = await axios.get(`${API_URL}?url=${encodeURIComponent(url)}`, {
             headers: {
                 'accept': '*/*',
                 'User-Agent': 'Mozilla/5.0'
             }
         });
 
-        if (!response.data || !response.data.result || response.data.result.length === 0) {
+        // Debug: Cetak respons API
+        console.log('API Response:', response.data);
+
+        if (!response.data || !response.data.media || response.data.media.length === 0) {
             return ctx.reply('❌ Gagal mendapatkan media. Pastikan URL benar.');
         }
 
-        const mediaList = response.data.result;
+        const mediaList = response.data.media;
 
-        // Loop untuk setiap media (bisa gambar atau video)
+        // Kirim setiap media ke Telegram
         for (const media of mediaList) {
             const fileUrl = media.url;
             const type = media.type; // 'image' atau 'video'
@@ -55,7 +62,7 @@ bot.command('ig', async (ctx) => {
     }
 });
 
-// Auto-respon link untuk pesan selain perintah /ig
+// Auto-respon untuk pesan selain perintah /ig
 bot.on('message', (ctx) => {
     ctx.reply('🔗 Untuk mengunduh media Instagram, gunakan perintah:\n\n/ig <link_instagram>\n\nContoh: /ig https://www.instagram.com/p/...');
 });
