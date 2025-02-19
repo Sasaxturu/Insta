@@ -1,10 +1,11 @@
+
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
 const bot = new Telegraf(process.env.BOT_TOKEN); // Token diambil dari Heroku Config Vars
-const API_URL = 'https://itzpire.com/download/instagram';
+const API_URL = 'https://www.laurine.site/api/downloader/igdl';
 
 // Perintah /start
 bot.start((ctx) => {
@@ -27,45 +28,26 @@ bot.command('ig', async (ctx) => {
         const response = await axios.get(API_URL, {
             params: { url },
             headers: {
+                'accept': '*/*',
                 'User-Agent': 'Mozilla/5.0'
             }
         });
 
-        if (response.data.status !== 'success') {
+        if (!response.data || !response.data.result || response.data.result.length === 0) {
             return ctx.reply('❌ Gagal mendapatkan media. Pastikan URL benar.');
         }
 
-        const mediaList = response.data.data.media;
-        if (!mediaList || mediaList.length === 0) {
-            return ctx.reply('❌ Tidak ada media yang ditemukan.');
-        }
+        const mediaList = response.data.result;
 
         // Loop untuk setiap media (bisa gambar atau video)
         for (const media of mediaList) {
-            const fileUrl = media.downloadUrl;
+            const fileUrl = media.url;
+            const type = media.type; // 'image' atau 'video'
 
-            if (media.type === 'image') {
-                const filePath = path.join(__dirname, 'downloaded.jpg');
-
-                // Download gambar
-                await downloadFile(fileUrl, filePath);
-
-                // Kirim ke Telegram
-                await ctx.replyWithPhoto({ source: filePath });
-
-                // Hapus file setelah dikirim
-                fs.unlinkSync(filePath);
-            } else if (media.type === 'video') {
-                const filePath = path.join(__dirname, 'downloaded.mp4');
-
-                // Download video
-                await downloadFile(fileUrl, filePath);
-
-                // Kirim ke Telegram
-                await ctx.replyWithVideo({ source: filePath });
-
-                // Hapus file setelah dikirim
-                fs.unlinkSync(filePath);
+            if (type === 'image') {
+                await ctx.replyWithPhoto(fileUrl);
+            } else if (type === 'video') {
+                await ctx.replyWithVideo(fileUrl);
             }
         }
     } catch (error) {
@@ -78,25 +60,6 @@ bot.command('ig', async (ctx) => {
 bot.on('message', (ctx) => {
     ctx.reply('🔗 Untuk mengunduh media Instagram, gunakan perintah:\n\n/ig <link_instagram>\n\nContoh: /ig https://www.instagram.com/p/...');
 });
-
-// Fungsi untuk mengunduh file
-async function downloadFile(url, filePath) {
-    const response = await axios({
-        url,
-        method: 'GET',
-        responseType: 'stream',
-        headers: {
-            'User-Agent': 'Mozilla/5.0'
-        }
-    });
-
-    return new Promise((resolve, reject) => {
-        const writer = fs.createWriteStream(filePath);
-        response.data.pipe(writer);
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-    });
-}
 
 bot.launch();
 console.log('✅ Bot berjalan di Heroku...');
