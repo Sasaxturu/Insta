@@ -1,64 +1,64 @@
-const { Telegraf } = require('telegraf');
-const axios = require('axios');
+import telebot
+import requests
+import os
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+bot = telebot.TeleBot(TOKEN)
 
-bot.start((ctx) => ctx.reply('Selamat datang! Kirimkan tautan Instagram untuk diunduh.'));
+API_URL = "https://itzpire.com/download/instagram"
 
-bot.on('text', async (ctx) => {
-    const url = ctx.message.text;
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "Selamat datang! Kirimkan link Instagram yang ingin Anda unduh.")
 
-    if (!url.includes('instagram.com')) {
-        return ctx.reply('Kirimkan tautan Instagram yang valid.');
-    }
+@bot.message_handler(func=lambda message: message.text.startswith("http"))
+def download_instagram_media(message):
+    url = message.text.split('?')[0].strip()
+    
+    response = requests.get(f"{API_URL}?url={url}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        
+        if "data" in data and "media" in data["data"]:
+            for media in data["data"]["media"]:
+                media_url = media.get("downloadUrl", media.get("url"))  # Ambil link download
 
-    try {
-        const response = await axios.get('https://itzpire.com/download/instagram', {
-            params: { url }
-        });
+                if media["type"] == "video":
+                    file_path = "downloaded_video.mp4"
+                else:
+                    file_path = "downloaded_image.jpg"
+                
+                # Download file
+                if download_file(media_url, file_path):
+                    with open(file_path, "rb") as file:
+                        if media["type"] == "video":
+                            bot.send_video(message.chat.id, file)
+                        else:
+                            bot.send_photo(message.chat.id, file)
+                    
+                    os.remove(file_path)  # Hapus file setelah dikirim
+                else:
+                    bot.reply_to(message, "Gagal mengunduh media. Coba lagi nanti.")
+        else:
+            bot.reply_to(message, "Gagal mengambil media. Pastikan link valid.")
+    else:
+        bot.reply_to(message, "Terjadi kesalahan saat mengakses API.")
 
-        if (response.data.status !== 'success') {
-            return ctx.reply('Gagal mengunduh media. Pastikan tautan benar.');
-        }
+def download_file(url, file_path):
+    """Fungsi untuk mengunduh file dari URL dan menyimpannya ke server."""
+    try:
+        response = requests.get(url, stream=True, timeout=10)
+        
+        if response.status_code == 200:
+            with open(file_path, "wb") as file:
+                for chunk in response.iter_content(chunk_size=1024):
+                    file.write(chunk)
+            return os.path.exists(file_path) and os.path.getsize(file_path) > 0
+        else:
+            return False
+    except Exception as e:
+        print(f"Error download file: {e}")
+        return False
 
-        const media = response.data.data.media;
-        const caption = response.data.data.postInfo.caption;
-        const sourceUrl = response.data.data.metadata.originalUrl;
-        const fullCaption = `${caption}\n\n🔗 Source: ${sourceUrl}`;
-
-        if (media.length === 0) {
-            return ctx.reply('Tidak ada media yang ditemukan di tautan ini.');
-        }
-
-        for (const item of media) {
-            try {
-                // Cek apakah URL bisa diakses dengan HEAD request
-                await axios.head(item.downloadUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                        'Referer': 'https://www.instagram.com/',
-                    }
-                });
-
-                // Kirim media ke Telegram
-                if (item.type === 'video') {
-                    await ctx.sendVideo(item.downloadUrl, { caption: fullCaption });
-                } else if (item.type === 'image') {
-                    await ctx.sendPhoto(item.downloadUrl, { caption: fullCaption });
-                }
-            } catch (headError) {
-                console.error("HEAD Request Failed:", headError.message);
-                ctx.reply('Terjadi kesalahan saat mengunduh media. Coba lagi nanti.');
-            }
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        ctx.reply('Terjadi kesalahan saat mengunduh media.');
-    }
-});
-
-bot.launch();
-console.log('Bot berjalan...');
-
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+bot.polling()
