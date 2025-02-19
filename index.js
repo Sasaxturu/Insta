@@ -17,6 +17,8 @@ bot.on('text', async (ctx) => {
             params: { url }
         });
 
+        console.log("Response API:", response.data);
+
         if (response.data.status !== 'success') {
             return ctx.reply('Gagal mengunduh media. Pastikan tautan benar.');
         }
@@ -31,10 +33,30 @@ bot.on('text', async (ctx) => {
         }
 
         for (const item of media) {
-            if (item.type === 'video') {
-                await ctx.replyWithVideo({ url: item.downloadUrl }, { caption: fullCaption });
-            } else if (item.type === 'image') {
-                await ctx.replyWithPhoto({ url: item.downloadUrl }, { caption: fullCaption });
+            console.log("Media Item:", item);
+
+            // Cek apakah URL benar-benar valid dengan HEAD request
+            try {
+                const headCheck = await axios.head(item.downloadUrl);
+                console.log("HEAD Request Status:", headCheck.status);
+
+                if (item.type === 'video') {
+                    await ctx.replyWithVideo({ 
+                        url: item.downloadUrl 
+                    }, { 
+                        caption: fullCaption,
+                        supports_streaming: true 
+                    });
+                } else if (item.type === 'image') {
+                    await ctx.replyWithPhoto({ 
+                        url: item.downloadUrl 
+                    }, { 
+                        caption: fullCaption 
+                    });
+                }
+            } catch (headError) {
+                console.error("HEAD Request Failed:", headError.message);
+                ctx.reply('Gagal memuat video, coba tautan lain.');
             }
         }
     } catch (error) {
@@ -44,7 +66,6 @@ bot.on('text', async (ctx) => {
 });
 
 bot.launch();
-
 console.log('Bot berjalan...');
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
