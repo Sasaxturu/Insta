@@ -6,6 +6,12 @@ const path = require('path');
 const bot = new Telegraf(process.env.BOT_TOKEN); // Token diambil dari Heroku Config Vars
 const API_URL = 'https://itzpire.com/download/instagram';
 
+// Perintah /start
+bot.start((ctx) => {
+    ctx.reply('👋 Selamat datang di Instagram Downloader Bot! Gunakan perintah:\n\n/ig <link_instagram>\n\nContoh: /ig https://www.instagram.com/p/...');
+});
+
+// Perintah /ig
 bot.command('ig', async (ctx) => {
     try {
         // Ambil URL dari pesan
@@ -66,6 +72,11 @@ bot.command('ig', async (ctx) => {
         console.error('Error:', error.message);
         ctx.reply('❌ Terjadi kesalahan, coba lagi nanti.');
     }
+});
+
+// Auto-respon link untuk pesan selain perintah /ig
+bot.on('message', (ctx) => {
+    ctx.reply('🔗 Untuk mengunduh media Instagram, gunakan perintah:\n\n/ig <link_instagram>\n\nContoh: /ig https://www.instagram.com/p/...');
 });
 
 // Fungsi untuk mengunduh file
