@@ -21,25 +21,30 @@ def download_instagram_media(message):
         data = response.json()
         
         if "data" in data and "media" in data["data"]:
-            for media in data["data"]["media"]:
+            media_list = data["data"]["media"]
+            
+            if len(media_list) > 1:
+                bot.send_message(message.chat.id, f"Media ini memiliki {len(media_list)} item. Mengunduh semuanya...")
+
+            for index, media in enumerate(media_list, start=1):
                 media_url = media.get("downloadUrl", media.get("url"))  # Ambil link download
 
                 if media["type"] == "video":
-                    file_path = "downloaded_video.mp4"
+                    file_path = f"video_{index}.mp4"
                 else:
-                    file_path = "downloaded_image.jpg"
+                    file_path = f"image_{index}.jpg"
                 
                 # Download file
                 if download_file(media_url, file_path):
                     with open(file_path, "rb") as file:
                         if media["type"] == "video":
-                            bot.send_video(message.chat.id, file)
+                            bot.send_video(message.chat.id, file, caption=f"Video {index}")
                         else:
-                            bot.send_photo(message.chat.id, file)
+                            bot.send_photo(message.chat.id, file, caption=f"Foto {index}")
                     
                     os.remove(file_path)  # Hapus file setelah dikirim
                 else:
-                    bot.reply_to(message, "Gagal mengunduh media. Coba lagi nanti.")
+                    bot.reply_to(message, f"Gagal mengunduh media {index}. Coba lagi nanti.")
         else:
             bot.reply_to(message, "Gagal mengambil media. Pastikan link valid.")
     else:
