@@ -1,69 +1,69 @@
-import telebot
-import requests
-import os
+const TelegramBot = require('node-telegram-bot-api');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-bot = telebot.TeleBot(TOKEN)
+const TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN';
+const API_URL = 'https://itzpire.com/download/instagram';
+const bot = new TelegramBot(TOKEN, { polling: true });
 
-API_URL = "https://itzpire.com/download/instagram"
+bot.onText(/\/start/, (msg) => {
+    bot.sendMessage(msg.chat.id, 'Selamat datang! Kirimkan link Instagram yang ingin Anda unduh.');
+});
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, "Selamat datang! Kirimkan link Instagram yang ingin Anda unduh.")
-
-@bot.message_handler(func=lambda message: message.text.startswith("http"))
-def download_instagram_media(message):
-    url = message.text.split('?')[0].strip()
+bot.on('message', async (msg) => {
+    const chatId = msg.chat.id;
+    const url = msg.text;
     
-    response = requests.get(f"{API_URL}?url={url}")
+    if (!url.startsWith('http')) return;
     
-    if response.status_code == 200:
-        data = response.json()
+    try {
+        const response = await axios.get(`${API_URL}?url=${encodeURIComponent(url)}`);
         
-        if "data" in data and "media" in data["data"]:
-            media_list = data["data"]["media"]
+        if (response.data && response.data.data && response.data.data.media) {
+            const mediaList = response.data.data.media;
             
-            if len(media_list) > 1:
-                bot.send_message(message.chat.id, f"Media ini memiliki {len(media_list)} item. Mengunduh semuanya...")
+            if (mediaList.length > 1) {
+                bot.sendMessage(chatId, `Media ini memiliki ${mediaList.length} item. Mengunduh semuanya...`);
+            }
 
-            for index, media in enumerate(media_list, start=1):
-                media_url = media.get("downloadUrl", media.get("url"))  # Ambil link download
-
-                if media["type"] == "video":
-                    file_path = f"video_{index}.mp4"
-                else:
-                    file_path = f"image_{index}.jpg"
+            for (let i = 0; i < mediaList.length; i++) {
+                const media = mediaList[i];
+                const mediaUrl = media.downloadUrl || media.url;
+                const fileType = media.type === 'video' ? 'mp4' : 'jpg';
+                const fileName = `media_${i + 1}.${fileType}`;
                 
-                # Download file
-                if download_file(media_url, file_path):
-                    with open(file_path, "rb") as file:
-                        if media["type"] == "video":
-                            bot.send_video(message.chat.id, file, caption=f"Video {index}")
-                        else:
-                            bot.send_photo(message.chat.id, file, caption=f"Foto {index}")
-                    
-                    os.remove(file_path)  # Hapus file setelah dikirim
-                else:
-                    bot.reply_to(message, f"Gagal mengunduh media {index}. Coba lagi nanti.")
-        else:
-            bot.reply_to(message, "Gagal mengambil media. Pastikan link valid.")
-    else:
-        bot.reply_to(message, "Terjadi kesalahan saat mengakses API.")
+                const filePath = path.join(__dirname, fileName);
+                await downloadFile(mediaUrl, filePath);
+                
+                if (media.type === 'video') {
+                    bot.sendVideo(chatId, fs.createReadStream(filePath), { caption: `Video ${i + 1}` });
+                } else {
+                    bot.sendPhoto(chatId, fs.createReadStream(filePath), { caption: `Foto ${i + 1}` });
+                }
 
-def download_file(url, file_path):
-    """Fungsi untuk mengunduh file dari URL dan menyimpannya ke server."""
-    try:
-        response = requests.get(url, stream=True, timeout=10)
-        
-        if response.status_code == 200:
-            with open(file_path, "wb") as file:
-                for chunk in response.iter_content(chunk_size=1024):
-                    file.write(chunk)
-            return os.path.exists(file_path) and os.path.getsize(file_path) > 0
-        else:
-            return False
-    except Exception as e:
-        print(f"Error download file: {e}")
-        return False
+                fs.unlinkSync(filePath); // Hapus file setelah dikirim
+            }
+        } else {
+            bot.sendMessage(chatId, 'Gagal mengambil media. Pastikan link valid.');
+        }
+    } catch (error) {
+        console.error('Error:', error.message);
+        bot.sendMessage(chatId, 'Terjadi kesalahan saat mengakses API atau mengunduh media.');
+    }
+});
 
-bot.polling()
+async function downloadFile(url, filePath) {
+    const response = await axios({
+        url,
+        method: 'GET',
+        responseType: 'stream'
+    });
+    
+    return new Promise((resolve, reject) => {
+        const writer = fs.createWriteStream(filePath);
+        response.data.pipe(writer);
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
+}
