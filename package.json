@@ -2,15 +2,15 @@
   "name": "telegram-instagram-bot",
   "version": "1.0.0",
   "description": "Bot Telegram untuk mengunduh gambar & video Instagram",
-  "main": "bot.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "telegraf": "^4.12.2",
     "axios": "^1.6.0"
   },
   "engines": {
-    "node": ">=16"
+    "node": "20.x"
   }
 }
