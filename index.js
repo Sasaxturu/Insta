@@ -3,7 +3,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-const TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN';
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN; // Menggunakan variabel lingkungan di Heroku
 const API_URL = 'https://itzpire.com/download/instagram';
 const bot = new TelegramBot(TOKEN, { polling: true });
 
@@ -14,15 +14,15 @@ bot.onText(/\/start/, (msg) => {
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const url = msg.text;
-    
+
     if (!url.startsWith('http')) return;
-    
+
     try {
         const response = await axios.get(`${API_URL}?url=${encodeURIComponent(url)}`);
-        
+
         if (response.data && response.data.data && response.data.data.media) {
             const mediaList = response.data.data.media;
-            
+
             if (mediaList.length > 1) {
                 bot.sendMessage(chatId, `Media ini memiliki ${mediaList.length} item. Mengunduh semuanya...`);
             }
@@ -32,10 +32,10 @@ bot.on('message', async (msg) => {
                 const mediaUrl = media.downloadUrl || media.url;
                 const fileType = media.type === 'video' ? 'mp4' : 'jpg';
                 const fileName = `media_${i + 1}.${fileType}`;
-                
+
                 const filePath = path.join(__dirname, fileName);
                 await downloadFile(mediaUrl, filePath);
-                
+
                 if (media.type === 'video') {
                     bot.sendVideo(chatId, fs.createReadStream(filePath), { caption: `Video ${i + 1}` });
                 } else {
@@ -59,7 +59,7 @@ async function downloadFile(url, filePath) {
         method: 'GET',
         responseType: 'stream'
     });
-    
+
     return new Promise((resolve, reject) => {
         const writer = fs.createWriteStream(filePath);
         response.data.pipe(writer);
