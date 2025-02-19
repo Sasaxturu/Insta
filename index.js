@@ -17,8 +17,6 @@ bot.on('text', async (ctx) => {
             params: { url }
         });
 
-        console.log("Response API:", response.data);
-
         if (response.data.status !== 'success') {
             return ctx.reply('Gagal mengunduh media. Pastikan tautan benar.');
         }
@@ -33,30 +31,24 @@ bot.on('text', async (ctx) => {
         }
 
         for (const item of media) {
-            console.log("Media Item:", item);
-
-            // Cek apakah URL benar-benar valid dengan HEAD request
             try {
-                const headCheck = await axios.head(item.downloadUrl);
-                console.log("HEAD Request Status:", headCheck.status);
+                // Cek apakah URL bisa diakses dengan HEAD request
+                await axios.head(item.downloadUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                        'Referer': 'https://www.instagram.com/',
+                    }
+                });
 
+                // Kirim media ke Telegram
                 if (item.type === 'video') {
-                    await ctx.replyWithVideo({ 
-                        url: item.downloadUrl 
-                    }, { 
-                        caption: fullCaption,
-                        supports_streaming: true 
-                    });
+                    await ctx.sendVideo(item.downloadUrl, { caption: fullCaption });
                 } else if (item.type === 'image') {
-                    await ctx.replyWithPhoto({ 
-                        url: item.downloadUrl 
-                    }, { 
-                        caption: fullCaption 
-                    });
+                    await ctx.sendPhoto(item.downloadUrl, { caption: fullCaption });
                 }
             } catch (headError) {
                 console.error("HEAD Request Failed:", headError.message);
-                ctx.reply('Gagal memuat video, coba tautan lain.');
+                ctx.reply('Terjadi kesalahan saat mengunduh media. Coba lagi nanti.');
             }
         }
     } catch (error) {
