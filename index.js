@@ -17,6 +17,8 @@ bot.on('text', async (ctx) => {
             params: { url }
         });
 
+        console.log("Full API Response:", response.data); // Cetak seluruh respons API
+
         if (response.data.status !== 'success') {
             return ctx.reply('Gagal mengunduh media. Pastikan tautan benar.');
         }
@@ -26,13 +28,15 @@ bot.on('text', async (ctx) => {
         const sourceUrl = response.data.data.metadata.originalUrl;
         const fullCaption = `${caption}\n\n🔗 Source: ${sourceUrl}`;
 
+        console.log("Media Data:", media); // Cetak data media yang diterima
+
         if (media.length === 0) {
             return ctx.reply('Tidak ada media yang ditemukan di tautan ini.');
         }
 
         for (const item of media) {
             if (item.type === 'video') {
-                await ctx.replyWithVideo({ url: item.downloadUrl }, { caption: fullCaption });
+                await ctx.sendVideo(item.downloadUrl, { caption: fullCaption });
             } else if (item.type === 'image') {
                 await ctx.replyWithPhoto({ url: item.downloadUrl }, { caption: fullCaption });
             }
